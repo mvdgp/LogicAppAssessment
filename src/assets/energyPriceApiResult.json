@@ -1,0 +1,62 @@
+[
+    {
+        "date": "2025-04-01",
+        "costPerHour": 1.5,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-02",
+        "costPerHour": 1.6,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-03",
+        "costPerHour": 1.0,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-04",
+        "costPerHour": 0.6,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-05",
+        "costPerHour": 3.2,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-06",
+        "costPerHour": 4.3,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-07",
+        "costPerHour": 2.1,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-08",
+        "costPerHour": 2.2,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-09",
+        "costPerHour": 1.5,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-10",
+        "costPerHour": 2.4,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-11",
+        "costPerHour": 2,
+        "currency": "EUR"
+    },
+    {
+        "date": "2025-04-12",
+        "costPerHour": 2.6,
+        "currency": "EUR"
+    }
+]

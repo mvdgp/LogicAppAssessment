@@ -61,7 +61,7 @@ app.http('weather-pricing-data', {
             const costPerHour = getCostPerHourByDate(date);
 
             // Return the cost per hour for the specified date
-            return { body: `The cost per hour for ${date} is ${costPerHour}` };
+            return { body: costPerHour };
 
         } catch (error) {
             context.log(`Error occurred: ${error.message}`);

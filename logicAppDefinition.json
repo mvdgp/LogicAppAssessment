@@ -1,0 +1,369 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "When_a_file_is_added_or_modified": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['sftpwithssh']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/datasets/default/triggers/onupdatedfile",
+                    "queries": {
+                        "folderId": "6e202211-2856-4d17-9ded-5beb8b8626b0",
+                        "includeFileContent": true,
+                        "inferContentType": true,
+                        "queryParametersSingleEncoded": true
+                    }
+                },
+                "recurrence": {
+                    "interval": 15,
+                    "frequency": "Minute",
+                    "timeZone": "W. Europe Standard Time"
+                },
+                "conditions": [],
+                "metadata": {
+                    "6e202211-2856-4d17-9ded-5beb8b8626b0": "/"
+                }
+            }
+        },
+        "actions": {
+            "Extract_Weather_Data": {
+                "type": "Scope",
+                "actions": {
+                    "Parse_JSON": {
+                        "type": "ParseJson",
+                        "inputs": {
+                            "content": "@string(triggerBody())",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "date": {
+                                        "type": "string"
+                                    },
+                                    "temperature": {
+                                        "type": "number"
+                                    },
+                                    "humidity": {
+                                        "type": "integer"
+                                    },
+                                    "windSpeed": {
+                                        "type": "number"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "runAfter": {}
+            },
+            "Retrieve_Pricing_Data": {
+                "type": "Scope",
+                "actions": {
+                    "Get_secret": {
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['keyvault']['connectionId']"
+                                }
+                            },
+                            "method": "get",
+                            "path": "/secrets/@{encodeURIComponent('functionAppSecret')}/value"
+                        },
+                        "runtimeConfiguration": {
+                            "secureData": {
+                                "properties": [
+                                    "inputs",
+                                    "outputs"
+                                ]
+                            }
+                        }
+                    },
+                    "HTTP": {
+                        "type": "Http",
+                        "inputs": {
+                            "uri": "https://cegeka-weather-app.azurewebsites.net/api/weather-pricing-data",
+                            "method": "GET",
+                            "headers": {
+                                "x-functions-key": "@{body('Get_secret')?['value']}"
+                            },
+                            "queries": {
+                                "date": "@{string(body('Parse_JSON')?['date'])}"
+                            }
+                        },
+                        "runAfter": {
+                            "Get_secret": [
+                                "Succeeded"
+                            ]
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Extract_Weather_Data": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "Enrich_Weather_Data_with_Pricing_Data": {
+                "type": "Scope",
+                "actions": {
+                    "Calculate_totalPrice": {
+                        "type": "Compose",
+                        "inputs": "@mul(mul(float(body('HTTP')), float(body('Parse_JSON')?['windSpeed'])), 24)"
+                    },
+                    "Enrich_Weather_Data": {
+                        "type": "ParseJson",
+                        "inputs": {
+                            "content": "@setProperty(body('Parse_JSON'), 'totalPrice', outputs('Calculate_totalPrice'))",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "date": {
+                                        "type": "string"
+                                    },
+                                    "temperature": {
+                                        "type": "number"
+                                    },
+                                    "humidity": {
+                                        "type": "integer"
+                                    },
+                                    "windSpeed": {
+                                        "type": "number"
+                                    },
+                                    "totalPrice": {
+                                        "type": "number"
+                                    }
+                                }
+                            }
+                        },
+                        "runAfter": {
+                            "Calculate_totalPrice": [
+                                "Succeeded"
+                            ]
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Retrieve_Pricing_Data": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "Enriched_Data_to_XML": {
+                "type": "Scope",
+                "actions": {
+                    "Convert_to_XML": {
+                        "type": "Compose",
+                        "inputs": "@string(xml(body('Prepare_JSON_for_XML_conversion')))",
+                        "runAfter": {
+                            "Prepare_JSON_for_XML_conversion": [
+                                "Succeeded"
+                            ]
+                        }
+                    },
+                    "Prepare_JSON_for_XML_conversion": {
+                        "type": "ParseJson",
+                        "inputs": {
+                            "content": "@setProperty(json('{}'), 'root', body('Enrich_Weather_Data'))",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "root": {
+                                        "type": "object",
+                                        "properties": {
+                                            "date": {
+                                                "type": "string"
+                                            },
+                                            "temperature": {
+                                                "type": "number"
+                                            },
+                                            "humidity": {
+                                                "type": "integer"
+                                            },
+                                            "windSpeed": {
+                                                "type": "number"
+                                            },
+                                            "totalPrice": {
+                                                "type": "number"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Enrich_Weather_Data_with_Pricing_Data": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "Write_XML_Files_to_FileShare": {
+                "type": "Scope",
+                "actions": {
+                    "Create_Enriched_Weather_Data_XML_File": {
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azurefile']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": "@outputs('Convert_to_XML')",
+                            "headers": {
+                                "ReadFileMetadataFromServer": true
+                            },
+                            "path": "/datasets/default/files",
+                            "queries": {
+                                "folderPath": "/weatherapp-fileshare",
+                                "name": "@replace(decodeBase64(triggerOutputs()['headers']['x-ms-file-name-encoded']), '.json', '.xml')",
+                                "queryParametersSingleEncoded": true
+                            }
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Enriched_Data_to_XML": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "FAILED_|_Extract_Weather_Data": {
+                "type": "Terminate",
+                "inputs": {
+                    "runStatus": "Failed",
+                    "runError": {
+                        "code": "400",
+                        "message": "Extracting weather data has failed."
+                    }
+                },
+                "runAfter": {
+                    "Extract_Weather_Data": [
+                        "Failed",
+                        "Skipped",
+                        "TimedOut"
+                    ]
+                }
+            },
+            "FAILED_|_Retrieve_Pricing_Data": {
+                "type": "Terminate",
+                "inputs": {
+                    "runStatus": "Failed",
+                    "runError": {
+                        "code": "400",
+                        "message": "Retrieving pricing data has failed."
+                    }
+                },
+                "runAfter": {
+                    "Retrieve_Pricing_Data": [
+                        "Failed",
+                        "Skipped",
+                        "TimedOut"
+                    ]
+                }
+            },
+            "FAILED_|_Enrich_Weather_Data": {
+                "type": "Terminate",
+                "inputs": {
+                    "runStatus": "Failed",
+                    "runError": {
+                        "code": "400",
+                        "message": "Enriching weather data has failed."
+                    }
+                },
+                "runAfter": {
+                    "Enrich_Weather_Data_with_Pricing_Data": [
+                        "Failed",
+                        "Skipped",
+                        "TimedOut"
+                    ]
+                }
+            },
+            "FAILED_|_Enriched_Data_to_XML": {
+                "type": "Terminate",
+                "inputs": {
+                    "runStatus": "Failed",
+                    "runError": {
+                        "code": "400",
+                        "message": "Converting enriched data to XML has failed."
+                    }
+                },
+                "runAfter": {
+                    "Enriched_Data_to_XML": [
+                        "Failed",
+                        "Skipped",
+                        "TimedOut"
+                    ]
+                }
+            },
+            "FAILED_|_Write_XML_to_FileShare": {
+                "type": "Terminate",
+                "inputs": {
+                    "runStatus": "Failed",
+                    "runError": {
+                        "code": "400",
+                        "message": "Writing XML data to FileShare has failed."
+                    }
+                },
+                "runAfter": {
+                    "Write_XML_Files_to_FileShare": [
+                        "Failed",
+                        "Skipped",
+                        "TimedOut"
+                    ]
+                }
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "sftpwithssh": {
+                    "id": "/subscriptions/35d76c0a-d1a0-4226-ad00-0b3839133839/providers/Microsoft.Web/locations/westeurope/managedApis/sftpwithssh",
+                    "connectionId": "/subscriptions/35d76c0a-d1a0-4226-ad00-0b3839133839/resourceGroups/CegekaAssessment/providers/Microsoft.Web/connections/sftpwithssh",
+                    "connectionName": "sftpwithssh"
+                },
+                "keyvault": {
+                    "id": "/subscriptions/35d76c0a-d1a0-4226-ad00-0b3839133839/providers/Microsoft.Web/locations/westeurope/managedApis/keyvault",
+                    "connectionId": "/subscriptions/35d76c0a-d1a0-4226-ad00-0b3839133839/resourceGroups/CegekaAssessment/providers/Microsoft.Web/connections/keyvault-1",
+                    "connectionName": "keyvault-1",
+                    "connectionProperties": {
+                        "authentication": {
+                            "type": "ManagedServiceIdentity"
+                        }
+                    }
+                },
+                "azurefile": {
+                    "id": "/subscriptions/35d76c0a-d1a0-4226-ad00-0b3839133839/providers/Microsoft.Web/locations/westeurope/managedApis/azurefile",
+                    "connectionId": "/subscriptions/35d76c0a-d1a0-4226-ad00-0b3839133839/resourceGroups/CegekaAssessment/providers/Microsoft.Web/connections/azurefile",
+                    "connectionName": "azurefile"
+                }
+            }
+        }
+    }
+}

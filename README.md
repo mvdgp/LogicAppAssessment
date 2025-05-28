@@ -14,6 +14,9 @@ This project demonstrates my approach to enrich a company's weather-based pricin
 - [`logicAppDefinition.json`](logicAppDefinition.json):  
   The JSON definition of the Azure Logic App.
 
+- [`weather-pricing-data.test.js`](weather-pricing-data.test.js):
+  Automated Jest tests for the Azure Function
+
 ---
 
 ## Approach

@@ -69,3 +69,9 @@ app.http('weather-pricing-data', {
         }
     }
 });
+
+// Export the functions for automated testing
+module.exports = {
+    validateDate,
+    getCostPerHourByDate
+};
